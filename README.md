@@ -16,4 +16,8 @@
          [213 130  74]   192        Opponent Paddle
          [236 236 236]   4160       White Boundary
 ```
-
+- Paddle Positions: [start,end] inclusive
+```
+         Opponent        Us         Ball
+         [16,20]         [140,144]  [20,140]
+```
