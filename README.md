@@ -1,4 +1,6 @@
-# DQN Pong
+# DQN_Pong
+
+![](assets/carb.jpg)
 
 ## OpenAI Pong-V0 Gym Environment
 
