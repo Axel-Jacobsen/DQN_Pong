@@ -10,10 +10,10 @@
 - Unique Colours:
 ```
          RGB             Count      Description
-		 [  0   0   0]   8          Black 
-		 [ 92 186  92]   256        Our Paddle
-		 [144  72  17]   28984      Background
-		 [213 130  74]   192        Opponent Paddle
-		 [236 236 236]   4160       White Boundary
+         [  0   0   0]   8          Black 
+         [ 92 186  92]   256        Our Paddle
+         [144  72  17]   28984      Background
+         [213 130  74]   192        Opponent Paddle
+         [236 236 236]   4160       White Boundary
 ```
 
