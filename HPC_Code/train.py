@@ -2,13 +2,10 @@
 
 import gym
 import numpy as np
-np.random.seed(0)
 
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-torch.manual_seed(0)
-
 from scipy.ndimage.measurements import center_of_mass
 
 from model import ReplayMemory, DQN, Transition
@@ -22,10 +19,10 @@ class TrainPongV0(object):
     # hyperparameters
     BATCH_SIZE = 64
     GAMMA = 0.99
-    EPSILON_END = 0.05
+    EPSILON_FINAL = 0.05
     EPSILON_DECAY = 1e6
     TARGET_UPDATE = 1000
-    lr = 1e-4
+    lr = 1e-3
     INITIAL_MEMORY = 10000
     MEMORY_SIZE = 10 * INITIAL_MEMORY
 
@@ -85,8 +82,6 @@ class TrainPongV0(object):
         else:
             return torch_state_vec
 
-
-
     def select_action(self, state, env):
         # Action Space: integers [0,1,2,3,4,5] - represents movements of [do nothing, do nothing, up, down, up, down]
         # This is redundant; we want our network output to be smaller, cause then it will be easier to train.
@@ -95,13 +90,11 @@ class TrainPongV0(object):
         #   - if the first is biggest, up
         #   - if the third is biggest, down
         # conviniently, if we add 1 to our network output, we get the gym env's action space for the correct mapping
-
-        if np.random.rand() < self.EPSILON_END + (1 - self.EPSILON_END) * np.exp(-1 * self.steps / self.EPSILON_DECAY):
+        if np.random.rand() < (self.EPSILON_FINAL + (1 - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY)):
             return torch.tensor(env.action_space.sample(), device=self.device)
         else:
             with torch.no_grad():
-                x = self.policy(state.to(self.device))
-                return self.policy(state.to(self.device)).argmax() + 1
+                return self.policy(state.to(self.device)).argmax()
 
     def memory_replay(self):
         if len(memory) < self.BATCH_SIZE:
@@ -142,10 +135,13 @@ class TrainPongV0(object):
                                 expected_state_action_values.unsqueeze(1))
 
         self.optimizer.zero_grad()
+        a = list(self.policy.parameters())[0].clone()
         loss.backward()
-        for param in self.policy.parameters():
-            param.grad.data.clamp_(-1, 1)
+#        for param in self.policy.parameters():
+#            param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
+        b = list(self.policy.parameters())[0].clone()
+        assert not torch.equal(a.data,b.data)
 
     def train(self, num_episodes: int):
         env = gym.make('Pong-v4')
@@ -182,9 +178,15 @@ class TrainPongV0(object):
                     break
 
             if episode % 20 == 0:
-
                 print('\rTotal steps: {} \t Episode: {}/{} \t Total reward: {} \t Epsilon: {}'.format(
-                    self.steps, episode, num_episodes, tot_reward, np.exp(-1 * self.steps * self.EPSILON_DECAY)))
+                    self.steps, episode, num_episodes, tot_reward, self.EPSILON_FINAL + (1 - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY)))
+
+            if episode % 100 == 0:
+                policy_PATH = f'policies/policy_episode_{episode}'
+                target_PATH = f'targets/target_episode_{episode}'
+                torch.save(self.policy.state_dict(), policy_PATH)
+                torch.save(self.target.state_dict(), target_PATH)
+
 
         policy_PATH = f'policy_episode_{episode}'
         target_PATH = f'target_episode_{episode}'
@@ -198,13 +200,15 @@ if __name__ == '__main__':
     device = torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"
     )
+    device = "cpu" # Cuda is giving me a hell of a time, stick to cpu
+    print(f'Using Device {device}')
 
-    target = DQN().to(device)
-    policy = DQN().to(device)
+    target = DQN(device=device).to(device)
+    policy = DQN(device=device).to(device)
     target.load_state_dict(policy.state_dict())
 
     memory = ReplayMemory(TrainPongV0.MEMORY_SIZE)
 
     trainer = TrainPongV0(target, policy, memory, device)
 
-    trainer.train(400)
+    trainer.train(4000)
