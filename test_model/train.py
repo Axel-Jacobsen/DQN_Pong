@@ -73,13 +73,10 @@ class TrainPongV0(object):
         # without the if/else keeping the magnitude of velocity below 5, the velocity
         # can get really high once someone scores and the ball is placed in the center.
         # the velocities can be 2,3,4 (Pong-v0 randomly skips 2,3,4 frames)
-        ball_vx = (ball_x - prev_s[0][2]) if abs(ball_x - prev_s[0][2]) < 5 else 0
-        ball_vy = (ball_y - prev_s[0][3]) if abs(ball_y - prev_s[0][3]) < 5 else 0
+        ball_vx = ball_x - prev_s[0][2] if abs(ball_x - prev_s[0][2]) < 5 else 0
+        ball_vy = ball_y - prev_s[0][3] if abs(ball_y - prev_s[0][3]) < 5 else 0
 
-        # Scale the positions to [0, 10] and leave velocities in [0,4]
-        # Hypothesis: Before, we were scaling an int in [0,160] to a float in [0,1]
-        # Maybe this range is too small?
-        state_vec = np.array([opp_y, dqn_y, ball_x, ball_y, ball_vx, ball_vy]) # / np.array([1, 1, 1, 1, 1, 1])
+        state_vec = np.array([opp_y, dqn_y, ball_x, ball_y, ball_vx, ball_vy])
         torch_state_vec = torch.from_numpy(state_vec).unsqueeze(0)
 
         if view:
@@ -140,25 +137,13 @@ class TrainPongV0(object):
                 expected_state_action_values.unsqueeze(1))
 
         self.optimizer.zero_grad()
+        a = list(self.policy.parameters())[0].clone()
         loss.backward()
-        for param in self.policy.parameters():
-            param.grad.data.clamp_(-1, 1)
+#        for param in self.policy.parameters():
+#            param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
-
-
-    def better_reward(self, s):
-        """Returns a small reward for the paddle being close to the ball, when the ball
-        s[0][2] is ball_x position
-        """
-        if s is None:
-            return 0
-
-        if s[0][2] > 135:
-            dqn_y  = s[0][1]
-            ball_y = s[0][3]
-            return float(max(0, 8 - abs(ball_y - dqn_y)) / 100)
-
-        return 0
+        b = list(self.policy.parameters())[0].clone()
+        assert not torch.equal(a.data,b.data) # Make sure that parameters are actually changing
 
 
     def train(self, num_episodes: int):
@@ -175,14 +160,13 @@ class TrainPongV0(object):
                 obs, reward, done, _ = env.step(action)
                 self.steps += 1
 
+                tot_reward += reward
+                reward = torch.tensor([reward], device=self.device)
+
                 if not done:
                     next_state = self.prepare_state(obs, prev_s=state)
                 else:
                     next_state = None
- 
-                reward += self.better_reward(next_state)
-                tot_reward += reward
-                reward = torch.tensor([reward], device=self.device)
 
                 self.memory.push(state, action.to(self.device),
                         reward.to(self.device), next_state, done)
@@ -199,14 +183,14 @@ class TrainPongV0(object):
                     break
 
             if episode % 20 == 0:
-                print('\rTotal steps: {} \t Episode: {}/{} \t Total reward: {} \t Epsilon: {:.3f}'.format(
+                print('\rTotal steps: {} \t Episode: {}/{} \t Total reward: {} \t Epsilon: {}'.format(
                     self.steps, episode, num_episodes, tot_reward, self.EPSILON_FINAL + (1 - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY)))
 
                 if episode % 100 == 0:
                     policy_PATH = f'policies/policy_episode_{episode}'
-                    target_PATH = f'targets/target_episode_{episode}'
-                    torch.save(self.policy.state_dict(), policy_PATH)
-                    torch.save(self.target.state_dict(), target_PATH)
+                target_PATH = f'targets/target_episode_{episode}'
+                torch.save(self.policy.state_dict(), policy_PATH)
+                torch.save(self.target.state_dict(), target_PATH)
 
 
         policy_PATH = f'policy_episode_{episode}'
@@ -221,7 +205,7 @@ if __name__ == '__main__':
     device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
             )
-    
+    device = "cpu" # Cuda is giving me a hell of a time, stick to cpu
     print(f'Using Device {device}')
 
     target = DQN(device=device).to(device)
