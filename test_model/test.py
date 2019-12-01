@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import sys
 import gym
 import numpy as np
 import time
@@ -11,10 +12,10 @@ from PIL import Image, ImageDraw
 from model import DQN
 from train import TrainPongV0
 
-def render_model():
+def render_model(path):
     env = gym.make('Pong-v0')
     dqn = DQN()
-    dqn.load_state_dict(torch.load('policy_episode_2000', map_location=torch.device('cpu')))
+    dqn.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
     dqn.eval()
 
     dt = []
@@ -37,5 +38,11 @@ def render_model():
 
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        for path in sys.argv[1:]:
+            print(path)
+            render_model(path)
+    else:
+        path = 'HPC_1'
+        render_model(path)
 
-    render_model()

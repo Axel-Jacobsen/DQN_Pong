@@ -147,7 +147,7 @@ class TrainPongV0(object):
 
 
     def train(self, num_episodes: int):
-        env = gym.make('PongNoFrameskip-v0')
+        env = gym.make('Pong-v0')
         env = wrap_dqn(env)
 
         for episode in range(num_episodes):
