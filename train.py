@@ -19,10 +19,10 @@ class TrainPongV0(object):
 
     # hyperparameters
     BATCH_SIZE = 64
-    GAMMA = 0.99
+    GAMMA = 0.995
     EPSILON_FINAL = 0.05
     EPSILON_DECAY = 1e6
-    TARGET_UPDATE = 1000
+    TARGET_UPDATE = 100
     lr = 1e-4
     INITIAL_MEMORY = 10000
     MEMORY_SIZE = 10 * INITIAL_MEMORY
@@ -145,8 +145,8 @@ class TrainPongV0(object):
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
-
-    def better_reward(self, s):
+    @staticmethod
+    def better_reward(s, scaler=1):
         """Returns a small reward for the paddle being close to the ball, when the ball
         s[0][2] is ball_x position
         """
@@ -156,10 +156,13 @@ class TrainPongV0(object):
         if s[0][2] > 135:
             dqn_y  = s[0][1]
             ball_y = s[0][3]
-            return float(max(0, 8 - abs(ball_y - dqn_y)) / 100)
+            return float(max(0, scaler * (8 - abs(ball_y - dqn_y))) / 100)
 
         return 0
 
+    @staticmethod
+    def load_memory(path):
+        return (np.load(path, allow_pickle=True)).item()
 
     def train(self, num_episodes: int):
         env = gym.make('PongNoFrameskip-v0')
@@ -191,9 +194,9 @@ class TrainPongV0(object):
                 if self.steps > self.INITIAL_MEMORY:
                     self.memory_replay()
 
-                    # if self.steps % self.TARGET_UPDATE == 0:
+                    if self.steps % self.TARGET_UPDATE == 0:
                     # If you uncomment the above line, right indend the below line
-                    self.target.load_state_dict(policy.state_dict())
+                        self.target.load_state_dict(policy.state_dict())
 
                 if done:
                     break
@@ -207,7 +210,6 @@ class TrainPongV0(object):
                     target_PATH = f'targets/target_episode_{episode}'
                     torch.save(self.policy.state_dict(), policy_PATH)
                     torch.save(self.target.state_dict(), target_PATH)
-
 
         policy_PATH = f'policy_episode_{episode}'
         target_PATH = f'target_episode_{episode}'
@@ -228,7 +230,8 @@ if __name__ == '__main__':
     policy = DQN(device=device).to(device)
     target.load_state_dict(policy.state_dict())
 
-    memory = ReplayMemory(TrainPongV0.MEMORY_SIZE)
+    memory = TrainPongV0.load_memory('pre_trained_mem.npy')
+    # memory = ReplayMemory(TrainPongV0.MEMORY_SIZE)
 
     trainer = TrainPongV0(target, policy, memory, device)
 

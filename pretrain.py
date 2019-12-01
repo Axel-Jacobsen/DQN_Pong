@@ -32,7 +32,6 @@ def play_game():
             obs = env.reset()
             s = TrainPongV0.prepare_state(obs)
             for _ in range(10000):
-                env.render()
                 a = get_action()
                 prev_s = s
                 obs, r, d, _ = env.step(a)
@@ -41,13 +40,13 @@ def play_game():
                 print(s, end=' ')
                 print(r)
                 mem.push(prev_s, a, r, s, d)
+                env.render()
                 if d:
                     break
     except KeyboardInterrupt:
         pass
 
-    npmem = [np.array(t) for t in mem.memory]
-    np.save('pre_trained_mem', mem.memory)
+    np.save('pre_trained_mem', mem, allow_pickle=True)
     env.close()
 
 

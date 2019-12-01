@@ -6,6 +6,7 @@
 
 - First 34 rows is score, white bounding bar - cut out for training, execution
 - Last 16 rows is white bounding bar - cut this out
+- Action Space: integers [0,1,2,3,4,5] - represents movements of [do nothing, do nothing, up, down, up, down]
 - Background colour: (144  72  17)
 - Unique Colours:
 ```
