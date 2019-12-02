@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import os
 import sys
 import gym
 import numpy as np
@@ -13,24 +14,27 @@ from model import DQN
 from train import TrainPongV0
 
 def render_model(path):
-    env = gym.make('Pong-v0')
+    env = gym.make('PongNoFrameskip-v4')
     dqn = DQN()
     dqn.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
     dqn.eval()
 
-    dt = []
     obs = env.reset()
     s = TrainPongV0.prepare_state(obs)
+    epsilon = 0.0
     try:
-        for _ in range(1000):
+        for _ in range(15000):
             env.render()
-            a = dqn(s).argmax()
+            if np.random.rand() < epsilon:
+                a = np.random.choice(range(0,6))
+            else:
+                a = dqn(s).argmax()
             prev_s = s
             obs, _, d, _ = env.step(a)
             s = TrainPongV0.prepare_state(obs, prev_s=prev_s)
-
             if d:
                 break
+
     except KeyboardInterrupt:
         pass
 
@@ -38,11 +42,17 @@ def render_model(path):
 
 
 if __name__ == '__main__':
+    # policy_dir = os.listdir('policies')
+    # for p in policy_dir:
+    #     print('policies/' + p)
+    #     render_model('policies/' + p)
+
     if len(sys.argv) > 1:
         for path in sys.argv[1:]:
             print(path)
             render_model(path)
     else:
-        path = 'HPC_1'
+        path = 'HPC_4'
+        print('HPC_4')
         render_model(path)
 

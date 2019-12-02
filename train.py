@@ -156,7 +156,7 @@ class TrainPongV0(object):
         if s[0][2] > 135:
             dqn_y  = s[0][1]
             ball_y = s[0][3]
-            return float(max(0, scaler * (8 - abs(ball_y - dqn_y))) / 100)
+            return float(max(0, scaler * (5 - abs(ball_y - dqn_y))) / 100)
 
         return 0
 

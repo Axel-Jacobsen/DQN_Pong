@@ -25,7 +25,7 @@ def get_action():
 
 
 def play_game():
-    env = gym.make('PongNoFrameskip-v0')
+    env = gym.make('PongNoFrameskip-v4')
     mem = ReplayMemory(10000)
     try:
         for _ in range(100):
