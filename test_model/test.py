@@ -21,7 +21,7 @@ def render_model(path):
 
     obs = env.reset()
     s = TrainPongV0.prepare_state(obs)
-    epsilon = 0.0
+    epsilon = 0.1
     try:
         for _ in range(15000):
             env.render()

@@ -50,11 +50,10 @@ class TrainPongV0(object):
         returns a torch.tensor with (opponent paddle, our paddle, ball x pos, ball y pos, ball x velocity, ball y velocity)
         """
         if prev_s is None:
-            prev_s = torch.from_numpy(np.array([80, 80, 80, 80])).unsqueeze(0)
+            prev_s = torch.from_numpy(np.array([80, 80, 80, 80, 0, 0])).unsqueeze(0)
 
         # Get rid of useless rows and the green & blue colour chanels
         reduced_rows = s[34:194, :, 0]
-
         # Background is 0, paddles & ball is 1 (R value of backround 144)
         masked = (reduced_rows != 144).astype(int)
 
