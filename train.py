@@ -231,7 +231,7 @@ if __name__ == '__main__':
     device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
             )
-    device = 'cpu'
+
     print(f'Using Device {device}')
 
     target = DQN(device=device).to(device)
@@ -244,16 +244,16 @@ if __name__ == '__main__':
     policy.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
     target.load_state_dict(policy.state_dict())
 
-#    print(f'Loading memory from {memory_path}')
-#    pre_trained_memory = TrainPongV0.load_memory(memory_path)
+    print(f'Loading memory from {memory_path}')
+    pre_trained_memory = TrainPongV0.load_memory(memory_path)
     mem = ReplayMemory(TrainPongV0.MEMORY_SIZE)
-#    mem.memory.extend(pre_trained_memory.memory)
-#    print(f'pre-trained memory samples: {len(mem)}')
+    mem.memory.extend(pre_trained_memory.memory)
+    print(f'pre-trained memory samples: {len(mem)}')
 
     trainer = TrainPongV0(target, policy, mem, device)
 
     try:
         trainer.train(4000, br=True)
-    except KeyboardInterrupt:
+    finally:
         np.save('rewards', trainer.total_rewards, allow_pickle=True)
 
