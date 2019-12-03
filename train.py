@@ -34,6 +34,7 @@ class TrainPongV0(object):
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr)
         self.steps = 0
         self.device = device
+        self.total_rewards = []
 
     @staticmethod
     def prepare_state(s: np.ndarray, prev_s=None, view=False):
@@ -199,6 +200,8 @@ class TrainPongV0(object):
 
                 if done:
                     break
+            
+            self.total_rewards.append(tot_reward)
 
             if episode % 20 == 0:
                 print('\rTotal steps: {} \t Episode: {}/{} \t Total reward: {} \t Epsilon: {:.3f}'.format(
@@ -234,4 +237,8 @@ if __name__ == '__main__':
 
     trainer = TrainPongV0(target, policy, memory, device)
 
-    trainer.train(4000)
+    try:
+        trainer.train(4000)
+    except KeyboardInterrupt:
+        np.save('rewards', trainer.total_rewards, allow_pickle=True)
+

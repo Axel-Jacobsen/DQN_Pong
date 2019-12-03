@@ -14,14 +14,14 @@ from model import DQN
 from train import TrainPongV0
 
 def render_model(path):
-    env = gym.make('PongNoFrameskip-v4')
+    env = gym.make('Pong-v4')
     dqn = DQN()
     dqn.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
     dqn.eval()
 
     obs = env.reset()
     s = TrainPongV0.prepare_state(obs)
-    epsilon = 0.1
+    epsilon = 0.05
     try:
         for _ in range(15000):
             env.render()
