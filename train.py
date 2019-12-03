@@ -19,11 +19,12 @@ class TrainPongV0(object):
 
     # hyperparameters
     BATCH_SIZE = 64
-    GAMMA = 0.995
-    EPSILON_FINAL = 0.05
+    GAMMA = 0.99
+    EPSILON_START = 0.3
+    EPSILON_FINAL = 0.02
     EPSILON_DECAY = 1e6
     TARGET_UPDATE = 100
-    lr = 1e-4
+    lr = 1e-5
     INITIAL_MEMORY = 10000
     MEMORY_SIZE = 10 * INITIAL_MEMORY
 
@@ -34,7 +35,11 @@ class TrainPongV0(object):
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr)
         self.steps = 0
         self.device = device
-        self.total_rewards = []
+        self.total_rewards = [] # Total rewards - dt is 1 episode
+
+    @property
+    def epsilon(self):
+        return (self.EPSILON_FINAL + (self.EPSILON_START - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY))
 
     @staticmethod
     def prepare_state(s: np.ndarray, prev_s=None, view=False):
@@ -55,6 +60,7 @@ class TrainPongV0(object):
 
         # Get rid of useless rows and the green & blue colour chanels
         reduced_rows = s[34:194, :, 0]
+
         # Background is 0, paddles & ball is 1 (R value of backround 144)
         masked = (reduced_rows != 144).astype(int)
 
@@ -79,7 +85,7 @@ class TrainPongV0(object):
         # Scale the positions to [0, 10] and leave velocities in [0,4]
         # Hypothesis: Before, we were scaling an int in [0,160] to a float in [0,1]
         # Maybe this range is too small?
-        state_vec = np.array([opp_y, dqn_y, ball_x, ball_y, ball_vx, ball_vy]) # / np.array([1, 1, 1, 1, 1, 1])
+        state_vec = np.array([opp_y, dqn_y, ball_x, ball_y, ball_vx, ball_vy]) # / np.array([160, 160, 160, 160, 4, 4])
         torch_state_vec = torch.from_numpy(state_vec).unsqueeze(0)
 
         if view:
@@ -95,14 +101,14 @@ class TrainPongV0(object):
         #   - if the first is biggest, up
         #   - if the third is biggest, down
         # conviniently, if we add 1 to our network output, we get the gym env's action space for the correct mapping
-        if np.random.rand() < (self.EPSILON_FINAL + (1 - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY)):
+        if np.random.rand() < self.epsilon:
             return torch.tensor(env.action_space.sample(), device=self.device)
         else:
             with torch.no_grad():
                 return self.policy(state.to(self.device)).argmax()
 
     def memory_replay(self):
-        if len(memory) < self.BATCH_SIZE:
+        if len(self.memory) < self.BATCH_SIZE:
             return
 
         # Returns list of Transitions
@@ -140,15 +146,17 @@ class TrainPongV0(object):
                 expected_state_action_values.unsqueeze(1))
 
         self.optimizer.zero_grad()
+        a = list(self.policy.parameters())[0].clone()
         loss.backward()
         for param in self.policy.parameters():
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
+        b = list(self.policy.parameters())[0].clone()
+        assert not torch.equal(a.data,b.data)
 
-    @staticmethod
-    def better_reward(s, scaler=1):
+
+    def better_reward(self, s):
         """Returns a small reward for the paddle being close to the ball, when the ball
-        s[0][2] is ball_x position
         """
         if s is None:
             return 0
@@ -156,7 +164,7 @@ class TrainPongV0(object):
         if s[0][2] > 135:
             dqn_y  = s[0][1]
             ball_y = s[0][3]
-            return float(max(0, scaler * (5 - abs(ball_y - dqn_y))) / 100)
+            return float(max(0, (5 - abs(ball_y - dqn_y))) / 50)
 
         return 0
 
@@ -164,16 +172,15 @@ class TrainPongV0(object):
     def load_memory(path):
         return (np.load(path, allow_pickle=True)).item()
 
-    def train(self, num_episodes: int):
-        env = gym.make('PongNoFrameskip-v0')
-        env = wrap_dqn(env)
+    def train(self, num_episodes: int, br=False):
+        env = gym.make('Pong-v4')
 
         for episode in range(num_episodes):
             state = env.reset()
             state = self.prepare_state(state)
             tot_reward = 0
-            while True:
 
+            while True:
                 action = self.select_action(state, env)
                 obs, reward, done, _ = env.step(action)
                 self.steps += 1
@@ -182,8 +189,9 @@ class TrainPongV0(object):
                     next_state = self.prepare_state(obs, prev_s=state)
                 else:
                     next_state = None
- 
-                reward += self.better_reward(next_state)
+
+                if br:
+                    reward += self.better_reward(next_state)
                 tot_reward += reward
                 reward = torch.tensor([reward], device=self.device)
 
@@ -191,21 +199,19 @@ class TrainPongV0(object):
                         reward.to(self.device), next_state, done)
                 state = next_state
 
-                if self.steps > self.INITIAL_MEMORY:
+                if self.steps > self.INITIAL_MEMORY or len(self.memory) >= self.INITIAL_MEMORY:
                     self.memory_replay()
-
                     if self.steps % self.TARGET_UPDATE == 0:
-                    # If you uncomment the above line, right indend the below line
                         self.target.load_state_dict(policy.state_dict())
 
                 if done:
                     break
-            
+
             self.total_rewards.append(tot_reward)
 
             if episode % 20 == 0:
-                print('\rTotal steps: {} \t Episode: {}/{} \t Total reward: {} \t Epsilon: {:.3f}'.format(
-                    self.steps, episode, num_episodes, tot_reward, self.EPSILON_FINAL + (1 - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY)))
+                print('\rTotal steps: {} \t Episode: {}/{} \t Total reward: {:.3f} \t Epsilon: {:.3f}'.format(
+                    self.steps, episode, num_episodes, tot_reward, self.epsilon))
 
                 if episode % 100 == 0:
                     policy_PATH = f'policies/policy_episode_{episode}'
@@ -225,20 +231,29 @@ if __name__ == '__main__':
     device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
             )
-
+    device = 'cpu'
     print(f'Using Device {device}')
 
     target = DQN(device=device).to(device)
     policy = DQN(device=device).to(device)
+
+    model_path = 'pre_trained_pth/HPC_775'
+    memory_path = 'bot_trained_mem.npy'
+
+    print(f'Loading model from {model_path}')
+    policy.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
     target.load_state_dict(policy.state_dict())
 
-    memory = TrainPongV0.load_memory('pre_trained_mem.npy')
-    # memory = ReplayMemory(TrainPongV0.MEMORY_SIZE)
+#    print(f'Loading memory from {memory_path}')
+#    pre_trained_memory = TrainPongV0.load_memory(memory_path)
+    mem = ReplayMemory(TrainPongV0.MEMORY_SIZE)
+#    mem.memory.extend(pre_trained_memory.memory)
+#    print(f'pre-trained memory samples: {len(mem)}')
 
-    trainer = TrainPongV0(target, policy, memory, device)
+    trainer = TrainPongV0(target, policy, mem, device)
 
     try:
-        trainer.train(4000)
+        trainer.train(4000, br=True)
     except KeyboardInterrupt:
         np.save('rewards', trainer.total_rewards, allow_pickle=True)
 
