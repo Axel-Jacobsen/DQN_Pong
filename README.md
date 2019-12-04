@@ -1,5 +1,9 @@
 # DQN Pong
 
+
+| ![](neg_8.gif) | ![](openai_gym.gif) | ![](good_start.gif) |
+
+
 ## OpenAI Pong-V0 Gym Environment
 
 - First 34 rows is score, white bounding bar - cut out for training, execution
