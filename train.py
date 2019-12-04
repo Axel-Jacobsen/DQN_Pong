@@ -241,8 +241,8 @@ if __name__ == '__main__':
     target = DQN(device=device).to(device)
     policy = DQN(device=device).to(device)
 
-    model_path = 'pre_trained_pth/HPC_775'
-    memory_path = 'bot_trained_mem.npy'
+    model_path = 'pth_files/HPC_training/HPC_10'
+    memory_path = 'pre_fill_memories/bot_trained_mem.npy'
 
     print(f'Loading model from {model_path}')
     policy.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
