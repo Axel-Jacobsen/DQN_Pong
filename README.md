@@ -1,7 +1,7 @@
 # DQN Pong
 
 
-| ![](neg_8.gif) | ![](openai_gym.gif) | ![](good_start.gif) |
+| ![](gifs/neg_8.gif) | ![](gifs/openai_gym.gif) | ![](gifs/good_start.gif) |
 
 
 ## OpenAI Pong-V0 Gym Environment
