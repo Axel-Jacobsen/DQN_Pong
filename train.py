@@ -107,7 +107,11 @@ class TrainPongV0(object):
             with torch.no_grad():
                 return self.policy(state.to(self.device)).argmax()
 
+    
     def memory_replay(self):
+        """
+        This method was more or less copied from https://github.com/jmichaux/dqn-pytorch/blob/master/main.py#L38 - It is a very clean solution, very readable. 
+        """
         if len(self.memory) < self.BATCH_SIZE:
             return
 
