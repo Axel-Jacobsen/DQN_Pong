@@ -9,8 +9,6 @@ import torch.nn.functional as F
 from scipy.ndimage.measurements import center_of_mass
 
 from model import ReplayMemory, DQN, Transition
-from wrappers import wrap_dqn
-
 
 class TrainPongV0(object):
     """
@@ -42,21 +40,18 @@ class TrainPongV0(object):
         return (self.EPSILON_FINAL + (self.EPSILON_START - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY))
 
     @staticmethod
-    def prepare_state(s: np.ndarray, prev_s=None, view=False):
+    def prepare_state(s: np.ndarray, view=False):
         """
         Boils state down to just the important info:
             - where is the opponent paddle?
             - where is our paddle?
             - where is the ball?
-            - where is the ball going?
         s is a np.ndarray of shape (210, 160, 3)
         The first 34 rows is bounding bar and score - not useful for training.
         Last 16 rows is bounding bar - also not useful.
         Colour definitions are in the README - the important piece of info is that the background's R value (of RGB) is 144 - therefore we mask for that value
-        returns a torch.tensor with (opponent paddle, our paddle, ball x pos, ball y pos, ball x velocity, ball y velocity)
+        returns a torch.tensor with (opponent paddle, our paddle, ball x pos, ball y pos)
         """
-        if prev_s is None:
-            prev_s = torch.from_numpy(np.array([80, 80, 80, 80, 0, 0])).unsqueeze(0)
 
         # Get rid of useless rows and the green & blue colour chanels
         reduced_rows = s[34:194, :, 0]
@@ -75,23 +70,17 @@ class TrainPongV0(object):
         ball_x = 80 if np.isnan(ball_x) else ball_x + 21
         ball_y = 80 if np.isnan(ball_y) else ball_y
 
-        # velocity is ds/dt
-        # without the if/else keeping the magnitude of velocity below 5, the velocity
-        # can get really high once someone scores and the ball is placed in the center.
-        # the velocities can be 2,3,4 (Pong-v0 randomly skips 2,3,4 frames)
-        ball_vx = (ball_x - prev_s[0][2]) if abs(ball_x - prev_s[0][2]) < 5 else 0
-        ball_vy = (ball_y - prev_s[0][3]) if abs(ball_y - prev_s[0][3]) < 5 else 0
-
         # Scale the positions to [0, 10] and leave velocities in [0,4]
         # Hypothesis: Before, we were scaling an int in [0,160] to a float in [0,1]
         # Maybe this range is too small?
-        state_vec = np.array([opp_y, dqn_y, ball_x, ball_y, ball_vx, ball_vy]) # / np.array([160, 160, 160, 160, 4, 4])
+        state_vec = np.array([opp_y, dqn_y, ball_x, ball_y]) # / np.array([160, 160, 160, 160, 4, 4])
         torch_state_vec = torch.from_numpy(state_vec).unsqueeze(0)
 
         if view:
             return torch_state_vec, masked
         else:
             return torch_state_vec
+
 
     def select_action(self, state, env):
         # Action Space: integers [0,1,2,3,4,5] - represents movements of [do nothing, do nothing, up, down, up, down]
@@ -177,7 +166,7 @@ class TrainPongV0(object):
         return (np.load(path, allow_pickle=True)).item()
 
     def train(self, num_episodes: int, br=False):
-        env = gym.make('Pong-v4')
+        env = gym.make('PongDeterministic-v4')
 
         for episode in range(num_episodes):
             state = env.reset()
@@ -241,18 +230,7 @@ if __name__ == '__main__':
     target = DQN(device=device).to(device)
     policy = DQN(device=device).to(device)
 
-    model_path = 'pth_files/HPC_training/HPC_10'
-    memory_path = 'pre_fill_memories/bot_trained_mem.npy'
-
-    print(f'Loading model from {model_path}')
-    policy.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
-    target.load_state_dict(policy.state_dict())
-
-    print(f'Loading memory from {memory_path}')
-    pre_trained_memory = TrainPongV0.load_memory(memory_path)
     mem = ReplayMemory(TrainPongV0.MEMORY_SIZE)
-    mem.memory.extend(pre_trained_memory.memory)
-    print(f'pre-trained memory samples: {len(mem)}')
 
     trainer = TrainPongV0(target, policy, mem, device)
 
