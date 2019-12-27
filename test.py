@@ -22,7 +22,7 @@ def render_model(path, for_gif=False):
 
     obs = env.reset()
     s = TrainPongV0.prepare_state(obs)
-    epsilon = 0.0
+    epsilon = 0.3
     frames = []
     tot_reward = 0
     try:
@@ -34,16 +34,16 @@ def render_model(path, for_gif=False):
                 env.render()
 
             if np.random.rand() < epsilon:
-                a = np.random.choice(range(0,6))
+                a = np.random.choice([1,2,3])
             else:
                 with torch.no_grad():
-                    a = dqn(torch.from_numpy(s))[0].argmax()
+                    a = dqn(torch.from_numpy(s))[0].argmax() + 1
 
             prev_s = s
+            print(a)
             obs, r, d, _ = env.step(a)
             tot_reward += r
             s = TrainPongV0.prepare_state(obs, prev_s=prev_s)
-            print(s[0])
             if d:
                 break
 
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     # collect_training_rewards('test_model/HPC_Training')
     best_r, best_frames = -1000, []
 
-    r, frames = render_model('policy_episode_1100', for_gif=False)
+    r, frames = render_model('policy_episode_5300', for_gif=False)
 
     # for forle in ['HPC_08', 'HPC_09', 'HPC_10']:
     #     for _ in range(9):
