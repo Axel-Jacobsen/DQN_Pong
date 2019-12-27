@@ -7,7 +7,6 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from scipy.ndimage.measurements import center_of_mass
-import random
 
 from model import ReplayMemory, DQN, Transition
 
@@ -20,10 +19,10 @@ class TrainPongV0(object):
     BATCH_SIZE = 64
     GAMMA = 0.99
     EPSILON_START = 1
-    EPSILON_FINAL = 0.05
+    EPSILON_FINAL = 0.02
     EPSILON_DECAY = 1000
     TARGET_UPDATE = 100
-    lr = 1e-5
+    lr = 1e-3
     INITIAL_MEMORY = 10000
     MEMORY_SIZE = 3 * INITIAL_MEMORY
 
@@ -39,7 +38,8 @@ class TrainPongV0(object):
 
     @property
     def epsilon(self):
-        return (self.EPSILON_FINAL + (self.EPSILON_START - self.EPSILON_FINAL) * np.exp(-1 * self.episodes / self.EPSILON_DECAY))
+        return 0
+        # return (self.EPSILON_FINAL + (self.EPSILON_START - self.EPSILON_FINAL) * np.exp(-1 * self.episodes / self.EPSILON_DECAY))
 
     @staticmethod
     def prepare_state(s: np.ndarray, prev_s=None):
@@ -69,14 +69,10 @@ class TrainPongV0(object):
 
         dqn_y = 80 if np.isnan(dqn_y) else dqn_y
         opp_y = 80 if np.isnan(opp_y) else opp_y
-        # x position of ball is offset by 21 px to the center of img
         ball_x = 80 if np.isnan(ball_x) else ball_x + 21
         ball_y = 80 if np.isnan(ball_y) else ball_y
 
-        # Scale the positions to [0, 10] and leave velocities in [0,4]
-        # Hypothesis: Before, we were scaling an int in [0,160] to a float in [0,1]
-        # Maybe this range is too small?
-        state_vec = np.array([[[opp_y, dqn_y, ball_x, ball_y]]]) # / np.array([160, 160, 160, 160, 4, 4])
+        state_vec = np.array([[[opp_y, dqn_y, ball_x, ball_y]]])
         state_vec = np.concatenate((state_vec, prev_s))[:5]
 
         return state_vec

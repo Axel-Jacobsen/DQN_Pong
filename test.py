@@ -10,19 +10,19 @@ import matplotlib.pyplot as plt
 
 from PIL import Image, ImageDraw
 
-from model import DQN
+from small_model import DQN
 from train import TrainPongV0
 
 
 def render_model(path, for_gif=False):
-    env = gym.make('Pong-v4')
+    env = gym.make('PongDeterministic-v4')
     dqn = DQN()
     dqn.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
     dqn.eval()
 
     obs = env.reset()
     s = TrainPongV0.prepare_state(obs)
-    epsilon = 0.04
+    epsilon = 0.0
     frames = []
     tot_reward = 0
     try:
@@ -36,12 +36,14 @@ def render_model(path, for_gif=False):
             if np.random.rand() < epsilon:
                 a = np.random.choice(range(0,6))
             else:
-                a = dqn(s).argmax()
+                with torch.no_grad():
+                    a = dqn(torch.from_numpy(s))[0].argmax()
 
             prev_s = s
             obs, r, d, _ = env.step(a)
             tot_reward += r
             s = TrainPongV0.prepare_state(obs, prev_s=prev_s)
+            print(s[0])
             if d:
                 break
 
@@ -104,15 +106,17 @@ if __name__ == '__main__':
     # collect_training_rewards('test_model/HPC_Training')
     best_r, best_frames = -1000, []
 
-    for forle in ['HPC_08', 'HPC_09', 'HPC_10']:
-        for _ in range(9):
-            r, frames = render_model('test_model/HPC_Training/' + forle, for_gif=True)
-            print(forle, r)
-            if r > best_r:
-                best_r = r
-                best_frames = frames
+    r, frames = render_model('policy_episode_1100', for_gif=False)
 
-    with open('openai_gym.gif', 'wb') as f:
-        im = Image.new('RGB', best_frames[0].size)
-        im.save(f, save_all=True, append_images=best_frames)
+    # for forle in ['HPC_08', 'HPC_09', 'HPC_10']:
+    #     for _ in range(9):
+    #         r, frames = render_model('test_model/HPC_Training/' + forle, for_gif=True)
+    #         print(forle, r)
+    #         if r > best_r:
+    #             best_r = r
+    #             best_frames = frames
+
+    # with open('openai_gym.gif', 'wb') as f:
+    #     im = Image.new('RGB', best_frames[0].size)
+    #     im.save(f, save_all=True, append_images=best_frames)
 
