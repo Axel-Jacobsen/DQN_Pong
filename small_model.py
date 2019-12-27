@@ -43,6 +43,6 @@ class DQN(nn.Module):
 
     def forward(self, x):
         x,_ = self.gru(x.float())
-        x = F.relu(self.linear1(x))
+        x = F.leaky_relu(self.linear1(x))
         return self.linear2(x)
 
