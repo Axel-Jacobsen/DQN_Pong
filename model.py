@@ -37,14 +37,15 @@ class DQN(nn.Module):
         self.device = device
 
         super(DQN, self).__init__()
-        self.gru = nn.GRU(in_features, 64, 1)
-        self.linear1 = nn.Linear(64, 256)
-        self.linear2 = nn.Linear(256, 256)
+        self.gru = nn.GRU(in_features, 256, 3)
+        self.linear1 = nn.Linear(256, 512)
+        self.linear2 = nn.Linear(512, 256)
         self.linear3 = nn.Linear(256, n_actions)
 
     def forward(self, x):
         x,_ = self.gru(x.float())
-        x = F.relu(x)
-        x = F.relu(self.linear1(x))
-        x = F.relu(self.linear2(x))
+        x = F.leaky_relu(x)
+        x = F.leaky_relu(self.linear1(x))
+        x = F.leaky_relu(self.linear2(x))
         return self.linear3(x)
+

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 from PIL import Image, ImageDraw
 
-from small_model import DQN
+from model import DQN
 from train import TrainPongV0
 
 
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     # collect_training_rewards('test_model/HPC_Training')
     best_r, best_frames = -1000, []
 
-    r, frames = render_model('policy_episode_5300', for_gif=False)
+    r, frames = render_model('policy_episode_1700', for_gif=False)
 
     # for forle in ['HPC_08', 'HPC_09', 'HPC_10']:
     #     for _ in range(9):
