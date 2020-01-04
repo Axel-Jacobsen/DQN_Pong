@@ -13,20 +13,26 @@ from PIL import Image, ImageDraw
 from model import DQN
 from train import TrainPongV0
 
+def get_epsilon(steps):
+    EPSILON_FINAL = 0.02
+    EPSILON_START = 0.3
+    EPSILON_DECAY = 10000000
+    return EPSILON_FINAL + (EPSILON_START - EPSILON_FINAL) * np.exp(-1 * steps / EPSILON_DECAY)
 
-def render_model(path, for_gif=False):
-    env = gym.make('Pong-v4')
+def render_model(path, for_gif=False, epsilon=None):
+    env = gym.make('PongDeterministic-v4')
     dqn = DQN()
     dqn.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
     dqn.eval()
 
     obs = env.reset()
     s = TrainPongV0.prepare_state(obs)
-    epsilon = 0.04
+    epsilon = get_epsilon(5687803)
+    print(epsilon)
     frames = []
     tot_reward = 0
     try:
-        for _ in range(15000):
+        for i in range(15000):
 
             if for_gif:
                 frames.append(Image.fromarray(env.render(mode='rgb_array')))
@@ -34,9 +40,10 @@ def render_model(path, for_gif=False):
                 env.render()
 
             if np.random.rand() < epsilon:
-                a = np.random.choice(range(0,6))
+                a = np.random.choice([1,2,3])
             else:
-                a = dqn(s).argmax()
+                with torch.no_grad():
+                    a = dqn(torch.from_numpy(s))[0].argmax() + 1
 
             prev_s = s
             obs, r, d, _ = env.step(a)
@@ -51,7 +58,7 @@ def render_model(path, for_gif=False):
     env.close()
 
     if for_gif:
-        return (tot_reward, frames)
+        return (tot_reward, frames, i)
 
 
 def collect_training_rewards(policy_dir_path):
@@ -104,15 +111,18 @@ if __name__ == '__main__':
     # collect_training_rewards('test_model/HPC_Training')
     best_r, best_frames = -1000, []
 
-    for forle in ['HPC_08', 'HPC_09', 'HPC_10']:
-        for _ in range(9):
-            r, frames = render_model('test_model/HPC_Training/' + forle, for_gif=True)
-            print(forle, r)
-            if r > best_r:
-                best_r = r
-                best_frames = frames
+    r, frames = render_model('policy_episode_14200_8433405', for_gif=False)
+    # print([render_model('policy_episode_14200_8433405', for_gif=True)[0] for _ in range(10)])
 
-    with open('openai_gym.gif', 'wb') as f:
-        im = Image.new('RGB', best_frames[0].size)
-        im.save(f, save_all=True, append_images=best_frames)
+    # for forle in os.listdir('curr_train'):
+    #     for _ in range(5):
+    #         r, frames, steps = render_model('curr_train/' + forle, for_gif=True, epsilon=0.1)
+    #         print(forle, r)
+    #         if r > best_r:
+    #             best_r = r
+    #             best_frames = frames
+
+    # with open('openai_gym.gif', 'wb') as f:
+    #     im = Image.new('RGB', best_frames[0].size)
+    #     im.save(f, save_all=True, append_images=best_frames)
 
