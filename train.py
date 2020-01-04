@@ -11,6 +11,7 @@ import random
 
 from model import ReplayMemory, DQN, Transition
 
+
 class TrainPongV0(object):
     """
     Class for training a DQN model for the Pong V0 Network
@@ -20,21 +21,12 @@ class TrainPongV0(object):
     BATCH_SIZE = 64
     GAMMA = 0.99
     EPSILON_START = 1
-<<<<<<< HEAD
     EPSILON_FINAL = 0.05
     EPSILON_DECAY = 10000000
-=======
-    EPSILON_FINAL = 0.02
-    EPSILON_DECAY = 1000
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
     TARGET_UPDATE = 100
-    lr = 1e-3
+    lr = 1e-5
     INITIAL_MEMORY = 10000
-<<<<<<< HEAD
     MEMORY_SIZE = 5 * INITIAL_MEMORY
-=======
-    MEMORY_SIZE = 3 * INITIAL_MEMORY
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
 
     def __init__(self, target: DQN, policy: DQN, memory: ReplayMemory, device):
         self.target = target
@@ -48,8 +40,7 @@ class TrainPongV0(object):
 
     @property
     def epsilon(self):
-        return 0
-        # return (self.EPSILON_FINAL + (self.EPSILON_START - self.EPSILON_FINAL) * np.exp(-1 * self.episodes / self.EPSILON_DECAY))
+        return (self.EPSILON_FINAL + (self.EPSILON_START - self.EPSILON_FINAL) * np.exp(-1 * self.steps / self.EPSILON_DECAY))
 
     @staticmethod
     def prepare_state(s: np.ndarray, prev_s=None):
@@ -63,11 +54,7 @@ class TrainPongV0(object):
                 function. Shape is (time_seq, batch, input_size)
         """
         if prev_s is None:
-<<<<<<< HEAD
-            prev_s = np.zeros((10,1,4))
-=======
-            prev_s = np.zeros((5, 1, 4))
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
+            prev_s = np.zeros((10, 1, 4))
 
         # Get rid of useless rows and the green & blue colour chanels
         reduced_rows = s[34:194, :, 0]
@@ -82,24 +69,14 @@ class TrainPongV0(object):
 
         dqn_y = 80 if np.isnan(dqn_y) else dqn_y
         opp_y = 80 if np.isnan(opp_y) else opp_y
+        # x position of ball is offset by 21 px to the center of img
         ball_x = 80 if np.isnan(ball_x) else ball_x + 21
         ball_y = 80 if np.isnan(ball_y) else ball_y
 
-<<<<<<< HEAD
-        # Scale the positions to [0, 10] and leave velocities in [0,4]
-        # Hypothesis: Before, we were scaling an int in [0,160] to a float in [0,1]
-        # Maybe this range is too small?
-        state_vec = np.array([[[opp_y, dqn_y, ball_x, ball_y]]]) # / np.array([160, 160, 160, 160, 4, 4])
+        state_vec = np.array([[[opp_y, dqn_y, ball_x, ball_y]]])
         state_vec = np.concatenate((state_vec, prev_s))[:10]
 
         return state_vec
-
-=======
-        state_vec = np.array([[[opp_y, dqn_y, ball_x, ball_y]]])
-        state_vec = np.concatenate((state_vec, prev_s))[:5]
-
-        return state_vec
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
 
     def select_action(self, state, env):
         """Select an action using randomized greedy.
@@ -120,11 +97,7 @@ class TrainPongV0(object):
             env - Gym environment
         """
         if np.random.rand() < self.epsilon:
-<<<<<<< HEAD
-            return torch.tensor(random.choice([0,1,2]), device=self.device)
-=======
             return torch.tensor(random.choice([0, 1, 2]), device=self.device)
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
         else:
             with torch.no_grad():
                 state = torch.from_numpy(state)
@@ -157,33 +130,15 @@ class TrainPongV0(object):
                                               if s is not None]).to(self.device)
         non_final_next_states = non_final_next_states.squeeze().transpose(0, 1)
 
-<<<<<<< HEAD
-        non_final_next_states = torch.tensor([s for s in batch.next_state
-            if s is not None]).to(self.device)
-        non_final_next_states = non_final_next_states.squeeze().transpose(0,1)
-
-        unwrapped_states = np.array(batch.state).squeeze()
-        # Reshape from (batch, time, input) to (time, batch, input)
-        unwrapped_states = np.transpose(unwrapped_states, (1,0,2))
-=======
         unwrapped_states = np.array(batch.state).squeeze()
         # Reshape from (batch, time, input) to (time, batch, input)
         unwrapped_states = np.transpose(unwrapped_states, (1, 0, 2))
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
 
         state_batch = torch.tensor(unwrapped_states).to(self.device)
         action_batch = torch.tensor(actions).to(self.device)
         reward_batch = torch.tensor(rewards).to(self.device)
 
         # Value of current state as predicted by policy network
-<<<<<<< HEAD
-        state_action_values = self.policy(state_batch)[0]  # index 0 gets most recent timestep
-        state_action_values = state_action_values.gather(1,action_batch.reshape((-1,1)))
-
-        next_state_values = torch.zeros(self.BATCH_SIZE, device=self.device)
-        next_state_values[non_final_mask] = self.target(
-                non_final_next_states)[0].max(1)[0].detach()
-=======
         # index 0 gets most recent timestep
         state_action_values = self.policy(state_batch)[0]
         state_action_values = state_action_values.gather(
@@ -192,7 +147,6 @@ class TrainPongV0(object):
         next_state_values = torch.zeros(self.BATCH_SIZE, device=self.device)
         next_state_values[non_final_mask] = self.target(
             non_final_next_states)[0].max(1)[0].detach()
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
 
         expected_state_action_values = (
             next_state_values * self.GAMMA) + reward_batch
@@ -207,11 +161,7 @@ class TrainPongV0(object):
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
         b = list(self.policy.parameters())[0].clone()
-<<<<<<< HEAD
-        assert not torch.equal(a.data,b.data)
-=======
         assert not torch.equal(a.data, b.data)
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
 
     @staticmethod
     def load_memory(path):
@@ -230,12 +180,8 @@ class TrainPongV0(object):
 
             while True:
                 action = self.select_action(state, env)
-<<<<<<< HEAD
-                obs, reward, done, _ = env.step(action+1)  # Actions are range [0,2] but env expects [1,3]
-=======
                 # Actions are range [0,2] but env expects [1,3]
                 obs, reward, done, _ = env.step(action+1)
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
                 self.steps += 1
 
                 if not done:
@@ -261,17 +207,12 @@ class TrainPongV0(object):
 
             self.total_rewards.append(tot_reward)
 
-<<<<<<< HEAD
             if (self.episodes) % 20 == 0:
-=======
-            if (episode+1) % 20 == 0:
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
                 print('\rTotal steps: {} \t Episode: {}/{} \t Batch reward: {:.3f} \t Last reward: {:.3f} \t Epsilon: {:.3f}'.format(
                     self.steps, episode+1, num_episodes, batch_reward, tot_reward, self.epsilon))
 
                 batch_reward = 0
 
-<<<<<<< HEAD
                 if (self.episodes) % 100 == 0:
                     policy_PATH = f'policies/policy_episode_{self.episodes}_{self.steps}'
                     target_PATH = f'targets/target_episode_{self.episodes}_{self.steps}'
@@ -280,44 +221,26 @@ class TrainPongV0(object):
 
         policy_PATH = f'policy_episode_{self.episodes}_{self.steps}'
         target_PATH = f'target_episode_{self.episodes}_{self.steps}'
-=======
-                if (episode+1) % 100 == 0:
-                    policy_PATH = f'policies/policy_episode_{episode+1}'
-                    target_PATH = f'targets/target_episode_{episode+1}'
-                    torch.save(self.policy.state_dict(), policy_PATH)
-                    torch.save(self.target.state_dict(), target_PATH)
-
-        policy_PATH = f'policy_episode_{episode+1}'
-        target_PATH = f'target_episode_{episode+1}'
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
         torch.save(self.policy.state_dict(), policy_PATH)
         torch.save(self.target.state_dict(), target_PATH)
 
         env.close()
 
 
-if __name__ == '__main__':
-    device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
-    )
+"""UNCOMMENT IF YOU WANT TO TRAIN"""
+# if __name__ == '__main__':
+#     device = torch.device(
+#             "cuda" if torch.cuda.is_available() else "cpu"
+#             )
 
-    print(f'Using Device {device}')
+#     print(f'Using Device {device}')
 
-    target = DQN(device=device).to(device)
-    policy = DQN(device=device).to(device)
-    model = torch.load('policies/policy_episode_12900_5687803')
-    policy.load_state_dict(model)
-    target.load_state_dict(model)
+#     target = DQN(device=device).to(device)
+#     policy = DQN(device=device).to(device)
+#     mem = ReplayMemory(TrainPongV0.MEMORY_SIZE)
+#     trainer = TrainPongV0(target, policy, mem, device)
 
-    mem = ReplayMemory(TrainPongV0.MEMORY_SIZE)
-
-    trainer = TrainPongV0(target, policy, mem, device)
-
-    try:
-<<<<<<< HEAD
-        trainer.train(50000)
-=======
-        trainer.train(4000)
->>>>>>> 944a3c8238676c518bcb72ff4c69aa6d9c6079bc
-    finally:
-        np.save('rewards', trainer.total_rewards, allow_pickle=True)
+#     try:
+#         trainer.train(50000)
+#     finally:
+#         np.save('rewards', trainer.total_rewards, allow_pickle=True)
