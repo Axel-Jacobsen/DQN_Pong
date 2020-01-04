@@ -33,15 +33,19 @@ class ReplayMemory(object):
 class DQN(nn.Module):
     '''DQN'''
 
-    def __init__(self, in_features=6, n_actions=6, device='cpu'):
+    def __init__(self, in_features=4, n_actions=3, device='cpu'):
         self.device = device
 
         super(DQN, self).__init__()
-        self.L1 = nn.Linear(in_features, 64)
-        self.L2 = nn.Linear(64, 64)
-        self.L3 = nn.Linear(64, n_actions)
+        self.gru = nn.GRU(in_features, 256, 3)
+        self.linear1 = nn.Linear(256, 512)
+        self.linear2 = nn.Linear(512, 256)
+        self.linear3 = nn.Linear(256, n_actions)
 
     def forward(self, x):
-        x = F.leaky_relu(self.L1(x.float()))
-        x = F.leaky_relu(self.L2(x))
-        return self.L3(x)
+        x,_ = self.gru(x.float())
+        x = F.leaky_relu(x)
+        x = F.leaky_relu(self.linear1(x))
+        x = F.leaky_relu(self.linear2(x))
+        return self.linear3(x)
+

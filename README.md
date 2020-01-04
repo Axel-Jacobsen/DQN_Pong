@@ -24,3 +24,11 @@
          Opponent        Us         Ball
          [16,20]         [140,144]  [20,140]
 ```
+
+## Poster Feedback
+- Limit bias where possible (Remove better reward and be careful with prefill memory)
+- Try LSTM/GRU with state space of [our_y, opp_y, ball_x, ball_y]
+- Reduce size of memory buffer. Try 20,000 - 50,000. If too large, it'll keep seeing too much old memory and not learn effectively
+- Compare to conv-net
+- Take research approach. Justify why our method is ideal
+- Should be able to get a score > 0
