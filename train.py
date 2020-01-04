@@ -10,6 +10,7 @@ from scipy.ndimage.measurements import center_of_mass
 
 from model import ReplayMemory, DQN, Transition
 
+
 class TrainPongV0(object):
     """
     Class for training a DQN model for the Pong V0 Network
@@ -34,7 +35,7 @@ class TrainPongV0(object):
         self.steps = 0
         self.episodes = 0
         self.device = device
-        self.total_rewards = [] # Total rewards - dt is 1 episode
+        self.total_rewards = []  # Total rewards - dt is 1 episode
 
     @property
     def epsilon(self):
@@ -53,8 +54,7 @@ class TrainPongV0(object):
                 function. Shape is (time_seq, batch, input_size)
         """
         if prev_s is None:
-            prev_s = np.zeros((5,1,4))
-
+            prev_s = np.zeros((5, 1, 4))
 
         # Get rid of useless rows and the green & blue colour chanels
         reduced_rows = s[34:194, :, 0]
@@ -77,7 +77,6 @@ class TrainPongV0(object):
 
         return state_vec
 
-
     def select_action(self, state, env):
         """Select an action using randomized greedy.
 
@@ -97,13 +96,12 @@ class TrainPongV0(object):
             env - Gym environment
         """
         if np.random.rand() < self.epsilon:
-            return torch.tensor(random.choice([0,1,2]), device=self.device)
+            return torch.tensor(random.choice([0, 1, 2]), device=self.device)
         else:
             with torch.no_grad():
                 state = torch.from_numpy(state)
                 res = self.policy(state.to(self.device))
                 return res[0].argmax()  # Max from the most recent time step
-
 
     def memory_replay(self):
         """
@@ -118,40 +116,42 @@ class TrainPongV0(object):
         batch = Transition(*zip(*transitions))
 
         actions = tuple(
-                (map(lambda a: torch.tensor([[a]], device=self.device), batch.action)))
+            (map(lambda a: torch.tensor([[a]], device=self.device), batch.action)))
 
         rewards = tuple(
-                (map(lambda r: torch.tensor([r], device=self.device), batch.reward)))
+            (map(lambda r: torch.tensor([r], device=self.device), batch.reward)))
 
         non_final_mask = torch.tensor(
-                tuple(map(lambda s: s is not None, batch.next_state)),
-                device=self.device)
+            tuple(map(lambda s: s is not None, batch.next_state)),
+            device=self.device)
 
         non_final_next_states = torch.tensor([s for s in batch.next_state
-            if s is not None]).to(self.device)
-        non_final_next_states = non_final_next_states.squeeze().transpose(0,1)
+                                              if s is not None]).to(self.device)
+        non_final_next_states = non_final_next_states.squeeze().transpose(0, 1)
 
         unwrapped_states = np.array(batch.state).squeeze()
         # Reshape from (batch, time, input) to (time, batch, input)
-        unwrapped_states = np.transpose(unwrapped_states, (1,0,2))
+        unwrapped_states = np.transpose(unwrapped_states, (1, 0, 2))
 
         state_batch = torch.tensor(unwrapped_states).to(self.device)
         action_batch = torch.tensor(actions).to(self.device)
         reward_batch = torch.tensor(rewards).to(self.device)
 
         # Value of current state as predicted by policy network
-        state_action_values = self.policy(state_batch)[0]  # index 0 gets most recent timestep
-        state_action_values = state_action_values.gather(1,action_batch.reshape((-1,1)))
+        # index 0 gets most recent timestep
+        state_action_values = self.policy(state_batch)[0]
+        state_action_values = state_action_values.gather(
+            1, action_batch.reshape((-1, 1)))
 
         next_state_values = torch.zeros(self.BATCH_SIZE, device=self.device)
         next_state_values[non_final_mask] = self.target(
-                non_final_next_states)[0].max(1)[0].detach()
+            non_final_next_states)[0].max(1)[0].detach()
 
         expected_state_action_values = (
-                next_state_values * self.GAMMA) + reward_batch
+            next_state_values * self.GAMMA) + reward_batch
 
         loss = F.smooth_l1_loss(state_action_values,
-                expected_state_action_values.unsqueeze(1))
+                                expected_state_action_values.unsqueeze(1))
 
         self.optimizer.zero_grad()
         a = list(self.policy.parameters())[0].clone()
@@ -160,8 +160,7 @@ class TrainPongV0(object):
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
         b = list(self.policy.parameters())[0].clone()
-        assert not torch.equal(a.data,b.data)
-
+        assert not torch.equal(a.data, b.data)
 
     @staticmethod
     def load_memory(path):
@@ -180,7 +179,8 @@ class TrainPongV0(object):
 
             while True:
                 action = self.select_action(state, env)
-                obs, reward, done, _ = env.step(action+1)  # Actions are range [0,2] but env expects [1,3]
+                # Actions are range [0,2] but env expects [1,3]
+                obs, reward, done, _ = env.step(action+1)
                 self.steps += 1
 
                 if not done:
@@ -193,7 +193,7 @@ class TrainPongV0(object):
                 reward = torch.tensor([reward], device=self.device)
 
                 self.memory.push(state, action.to(self.device),
-                        reward.to(self.device), next_state, done)
+                                 reward.to(self.device), next_state, done)
                 state = next_state
 
                 if self.steps > self.INITIAL_MEMORY or len(self.memory) >= self.INITIAL_MEMORY:
@@ -209,7 +209,7 @@ class TrainPongV0(object):
             if (episode+1) % 20 == 0:
                 print('\rTotal steps: {} \t Episode: {}/{} \t Batch reward: {:.3f} \t Last reward: {:.3f} \t Epsilon: {:.3f}'.format(
                     self.steps, episode+1, num_episodes, batch_reward, tot_reward, self.epsilon))
-                
+
                 batch_reward = 0
 
                 if (episode+1) % 100 == 0:
@@ -228,8 +228,8 @@ class TrainPongV0(object):
 
 if __name__ == '__main__':
     device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-            )
+        "cuda" if torch.cuda.is_available() else "cpu"
+    )
 
     print(f'Using Device {device}')
 
@@ -244,4 +244,3 @@ if __name__ == '__main__':
         trainer.train(4000)
     finally:
         np.save('rewards', trainer.total_rewards, allow_pickle=True)
-
