@@ -7,10 +7,10 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from scipy.ndimage.measurements import center_of_mass
+import random
 
 from model import ReplayMemory, DQN, Transition
 from wrappers import wrap_dqn
-
 
 class TrainPongV0(object):
     """
@@ -20,13 +20,13 @@ class TrainPongV0(object):
     # hyperparameters
     BATCH_SIZE = 64
     GAMMA = 0.99
-    EPSILON_START = 0.3
-    EPSILON_FINAL = 0.02
-    EPSILON_DECAY = 1e6
+    EPSILON_START = 1
+    EPSILON_FINAL = 0.05
+    EPSILON_DECAY = 10000000
     TARGET_UPDATE = 100
     lr = 1e-5
     INITIAL_MEMORY = 10000
-    MEMORY_SIZE = 10 * INITIAL_MEMORY
+    MEMORY_SIZE = 5 * INITIAL_MEMORY
 
     def __init__(self, target: DQN, policy: DQN, memory: ReplayMemory, device):
         self.target = target
@@ -34,6 +34,7 @@ class TrainPongV0(object):
         self.memory = memory
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr)
         self.steps = 0
+        self.episodes = 0
         self.device = device
         self.total_rewards = [] # Total rewards - dt is 1 episode
 
@@ -56,7 +57,7 @@ class TrainPongV0(object):
         returns a torch.tensor with (opponent paddle, our paddle, ball x pos, ball y pos, ball x velocity, ball y velocity)
         """
         if prev_s is None:
-            prev_s = torch.from_numpy(np.array([80, 80, 80, 80, 0, 0])).unsqueeze(0)
+            prev_s = np.zeros((10,1,4))
 
         # Get rid of useless rows and the green & blue colour chanels
         reduced_rows = s[34:194, :, 0]
@@ -75,23 +76,14 @@ class TrainPongV0(object):
         ball_x = 80 if np.isnan(ball_x) else ball_x + 21
         ball_y = 80 if np.isnan(ball_y) else ball_y
 
-        # velocity is ds/dt
-        # without the if/else keeping the magnitude of velocity below 5, the velocity
-        # can get really high once someone scores and the ball is placed in the center.
-        # the velocities can be 2,3,4 (Pong-v0 randomly skips 2,3,4 frames)
-        ball_vx = (ball_x - prev_s[0][2]) if abs(ball_x - prev_s[0][2]) < 5 else 0
-        ball_vy = (ball_y - prev_s[0][3]) if abs(ball_y - prev_s[0][3]) < 5 else 0
-
         # Scale the positions to [0, 10] and leave velocities in [0,4]
         # Hypothesis: Before, we were scaling an int in [0,160] to a float in [0,1]
         # Maybe this range is too small?
-        state_vec = np.array([opp_y, dqn_y, ball_x, ball_y, ball_vx, ball_vy]) # / np.array([160, 160, 160, 160, 4, 4])
-        torch_state_vec = torch.from_numpy(state_vec).unsqueeze(0)
+        state_vec = np.array([[[opp_y, dqn_y, ball_x, ball_y]]]) # / np.array([160, 160, 160, 160, 4, 4])
+        state_vec = np.concatenate((state_vec, prev_s))[:10]
 
-        if view:
-            return torch_state_vec, masked
-        else:
-            return torch_state_vec
+        return state_vec
+
 
     def select_action(self, state, env):
         # Action Space: integers [0,1,2,3,4,5] - represents movements of [do nothing, do nothing, up, down, up, down]
@@ -102,12 +94,11 @@ class TrainPongV0(object):
         #   - if the third is biggest, down
         # conviniently, if we add 1 to our network output, we get the gym env's action space for the correct mapping
         if np.random.rand() < self.epsilon:
-            return torch.tensor(env.action_space.sample(), device=self.device)
+            return torch.tensor(random.choice([0,1,2]), device=self.device)
         else:
             with torch.no_grad():
                 return self.policy(state.to(self.device)).argmax()
 
-    
     def memory_replay(self):
         """
         This method was more or less copied from https://github.com/jmichaux/dqn-pytorch/blob/master/main.py#L38 - It is a very clean solution, very readable. 
@@ -130,18 +121,25 @@ class TrainPongV0(object):
                 tuple(map(lambda s: s is not None, batch.next_state)),
                 device=self.device)
 
-        non_final_next_states = torch.cat([s for s in batch.next_state
+        non_final_next_states = torch.tensor([s for s in batch.next_state
             if s is not None]).to(self.device)
+        non_final_next_states = non_final_next_states.squeeze().transpose(0,1)
+
+        unwrapped_states = np.array(batch.state).squeeze()
+        # Reshape from (batch, time, input) to (time, batch, input)
+        unwrapped_states = np.transpose(unwrapped_states, (1,0,2))
 
         state_batch = torch.cat(batch.state).to(self.device)
         action_batch = torch.cat(actions)
         reward_batch = torch.cat(rewards)
 
-        state_action_values = self.policy(state_batch).gather(1, action_batch)
+        # Value of current state as predicted by policy network
+        state_action_values = self.policy(state_batch)[0]  # index 0 gets most recent timestep
+        state_action_values = state_action_values.gather(1,action_batch.reshape((-1,1)))
 
         next_state_values = torch.zeros(self.BATCH_SIZE, device=self.device)
         next_state_values[non_final_mask] = self.target(
-                non_final_next_states).max(1)[0].detach()
+                non_final_next_states)[0].max(1)[0].detach()
 
         expected_state_action_values = (
                 next_state_values * self.GAMMA) + reward_batch
@@ -158,20 +156,6 @@ class TrainPongV0(object):
         b = list(self.policy.parameters())[0].clone()
         assert not torch.equal(a.data,b.data)
 
-
-    def better_reward(self, s):
-        """Returns a small reward for the paddle being close to the ball, when the ball
-        """
-        if s is None:
-            return 0
-
-        if s[0][2] > 135:
-            dqn_y  = s[0][1]
-            ball_y = s[0][3]
-            return float(max(0, (5 - abs(ball_y - dqn_y))) / 50)
-
-        return 0
-
     @staticmethod
     def load_memory(path):
         return (np.load(path, allow_pickle=True)).item()
@@ -186,7 +170,7 @@ class TrainPongV0(object):
 
             while True:
                 action = self.select_action(state, env)
-                obs, reward, done, _ = env.step(action)
+                obs, reward, done, _ = env.step(action+1)  # Actions are range [0,2] but env expects [1,3]
                 self.steps += 1
 
                 if not done:
@@ -213,18 +197,20 @@ class TrainPongV0(object):
 
             self.total_rewards.append(tot_reward)
 
-            if episode % 20 == 0:
-                print('\rTotal steps: {} \t Episode: {}/{} \t Total reward: {:.3f} \t Epsilon: {:.3f}'.format(
-                    self.steps, episode, num_episodes, tot_reward, self.epsilon))
+            if (self.episodes) % 20 == 0:
+                print('\rTotal steps: {} \t Episode: {}/{} \t Batch reward: {:.3f} \t Last reward: {:.3f} \t Epsilon: {:.3f}'.format(
+                    self.steps, episode+1, num_episodes, batch_reward, tot_reward, self.epsilon))
 
-                if episode % 100 == 0:
-                    policy_PATH = f'policies/policy_episode_{episode}'
-                    target_PATH = f'targets/target_episode_{episode}'
+                batch_reward = 0
+
+                if (self.episodes) % 100 == 0:
+                    policy_PATH = f'policies/policy_episode_{self.episodes}_{self.steps}'
+                    target_PATH = f'targets/target_episode_{self.episodes}_{self.steps}'
                     torch.save(self.policy.state_dict(), policy_PATH)
                     torch.save(self.target.state_dict(), target_PATH)
 
-        policy_PATH = f'policy_episode_{episode}'
-        target_PATH = f'target_episode_{episode}'
+        policy_PATH = f'policy_episode_{self.episodes}_{self.steps}'
+        target_PATH = f'target_episode_{self.episodes}_{self.steps}'
         torch.save(self.policy.state_dict(), policy_PATH)
         torch.save(self.target.state_dict(), target_PATH)
 
@@ -240,6 +226,9 @@ if __name__ == '__main__':
 
     target = DQN(device=device).to(device)
     policy = DQN(device=device).to(device)
+    model = torch.load('policies/policy_episode_12900_5687803')
+    policy.load_state_dict(model)
+    target.load_state_dict(model)
 
     model_path = 'pth_files/HPC_training/HPC_10'
     memory_path = 'pre_fill_memories/bot_trained_mem.npy'
@@ -257,7 +246,7 @@ if __name__ == '__main__':
     trainer = TrainPongV0(target, policy, mem, device)
 
     try:
-        trainer.train(4000, br=True)
+        trainer.train(50000)
     finally:
         np.save('rewards', trainer.total_rewards, allow_pickle=True)
 
